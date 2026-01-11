@@ -1,0 +1,41 @@
+{
+  "rounds": [
+    {
+      "name": "Super Wild Card Weekend",
+      "games": [
+        { "id": "nfc_wc_1", "awayTeam": "Rams", "awaySeed": 5, "homeTeam": "Panthers", "homeSeed": 4 },
+        { "id": "nfc_wc_2", "awayTeam": "Packers", "awaySeed": 7, "homeTeam": "Bears", "homeSeed": 2 },
+        { "id": "nfc_wc_3", "awayTeam": "49ers", "awaySeed": 6, "homeTeam": "Eagles", "homeSeed": 3 },
+        { "id": "afc_wc_1", "awayTeam": "Bills", "awaySeed": 6, "homeTeam": "Jaguars", "homeSeed": 3 },
+        { "id": "afc_wc_2", "awayTeam": "Chargers", "awaySeed": 7, "homeTeam": "Patriots", "homeSeed": 2 },
+        { "id": "afc_wc_3", "awayTeam": "Texans", "awaySeed": 5, "homeTeam": "Steelers", "homeSeed": 4 }
+      ]
+    },
+    {
+      "name": "Divisional Round",
+      "games": [
+        { "id": "afc_div_1", "awayTeam": "TBD", "homeTeam": "Broncos", "homeSeed": 1 },
+        { "id": "afc_div_2", "awayTeam": "TBD", "homeTeam": "TBD" },
+        { "id": "nfc_div_1", "awayTeam": "TBD", "homeTeam": "Seahawks", "homeSeed": 1 },
+        { "id": "nfc_div_2", "awayTeam": "TBD", "homeTeam": "TBD" }
+      ]
+    },
+    {
+      "name": "Championship",
+      "games": [
+        { "id": "afc_champ", "awayTeam": "TBD", "homeTeam": "TBD" },
+        { "id": "nfc_champ", "awayTeam": "TBD", "homeTeam": "TBD" }
+      ]
+    },
+    {
+      "name": "Super Bowl",
+      "games": [
+        { "id": "super_bowl", "awayTeam": "TBD", "homeTeam": "TBD" }
+      ]
+    }
+  ],
+  "byes": {
+    "afc": { "team": "Broncos", "seed": 1 },
+    "nfc": { "team": "Seahawks", "seed": 1 }
+  }
+}

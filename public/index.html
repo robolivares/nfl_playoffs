@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFL Playoff Challenge 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .bracket-slot { min-height: 4rem; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px dashed #cbd5e1; border-radius: 0.5rem; transition: all 0.2s; color: #94a3b8; text-transform: uppercase; font-size: 0.7rem; }
+        .winner-selected { background-color: #dbeafe !important; border-color: #2563eb !important; color: #1e40af !important; font-weight: bold; }
+        .hidden { display: none; }
+        .summary-card { background: white; border-left: 4px solid #2563eb; padding: 1rem; border-radius: 0 0.5rem 0.5rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans min-h-screen">
+
+    <div class="max-w-7xl mx-auto p-4">
+        <header class="text-center py-10">
+            <h1 id="tournament-name" class="text-5xl font-black text-blue-900 tracking-tight uppercase">NFL Playoff Challenge</h1>
+            <p id="mode-subtitle" class="text-slate-500 mt-3 text-lg">Pick every winner to advance to the Super Bowl!</p>
+        </header>
+
+        <div id="picker-view" class="hidden">
+            <div id="bracket-ui" class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-slate-800 border-b-4 border-blue-600 pb-2">Wild Card</h2>
+                    <div id="wildcard-games" class="space-y-4"></div>
+                </div>
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-slate-800 border-b-4 border-slate-400 pb-2">Divisional</h2>
+                    <div id="divisional-games" class="space-y-8 pt-10"></div>
+                </div>
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-slate-800 border-b-4 border-slate-400 pb-2">Championship</h2>
+                    <div id="conference-games" class="space-y-16 pt-20"></div>
+                </div>
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-slate-800 border-b-4 border-yellow-500 pb-2">Super Bowl LX</h2>
+                    <div id="superbowl-game" class="pt-40"></div>
+                </div>
+            </div>
+            <div class="mt-20 text-center pb-32">
+                <button id="submit-picks" class="bg-blue-700 text-white px-12 py-5 rounded-full font-black text-xl shadow-2xl hover:bg-blue-800 transition-all">
+                    SUBMIT MY BRACKET
+                </button>
+            </div>
+        </div>
+
+        <div id="leaderboard-view" class="hidden max-w-4xl mx-auto pb-20">
+            <div class="bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-800 text-slate-300 uppercase text-xs font-bold">
+                        <tr>
+                            <th class="px-6 py-4">Rank</th>
+                            <th class="px-6 py-4">Player</th>
+                            <th class="px-6 py-4 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body" class="divide-y divide-slate-100 text-slate-800"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="summary-view" class="hidden max-w-4xl mx-auto pb-20">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 id="summary-title" class="text-3xl font-black text-slate-800 tracking-tight"></h2>
+                    <p class="text-slate-500 font-bold uppercase text-xs tracking-widest mt-1">Full Bracket</p>
+                </div>
+                <button onclick="closeSummary()" class="bg-slate-800 text-white px-6 py-2 rounded-full font-bold hover:bg-slate-700 transition-all shadow-lg">
+                    ← Back to Standings
+                </button>
+            </div>
+            <div id="summary-content" class="space-y-10">
+                </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, doc, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        let db, appConfig, tournamentData, picks = {}, teamSeeds = {};
+
+        async function initApp() {
+            const configModule = await import('./app-config.js?v=' + Date.now());
+            appConfig = configModule.appConfig;
+            
+            const response = await fetch(`tournament_data.json?v=${Date.now()}`);
+            tournamentData = await response.json();
+            
+            db = getFirestore(initializeApp(configModule.firebaseConfig));
+            document.getElementById('tournament-name').textContent = appConfig.TOURNAMENT_NAME;
+
+            if (appConfig.VIEWER_MODE_ENABLED) { 
+                showViewerMode(); 
+            } else { 
+                showPickerMode(); 
+            }
+        }
+
+        // --- VIEWER / LEADERBOARD MODE ---
+        function showViewerMode() {
+            document.getElementById('leaderboard-view').classList.remove('hidden');
+            document.getElementById('mode-subtitle').textContent = "Official Live Standings";
+
+            const viewerRef = doc(db, "tournaments", appConfig.TOURNAMENT_ID, "state", "viewerData");
+            onSnapshot(viewerRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    renderLeaderboard(data.participants || []);
+                }
+            });
+        }
+
+        function renderLeaderboard(participants) {
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = participants.map((p, i) => `
+                <tr class="${i === 0 ? 'bg-yellow-50' : ''}">
+                    <td class="px-6 py-4 font-black text-slate-400">#${i + 1}</td>
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-slate-800">${p.name}</div>
+                        <div class="text-blue-600 font-bold text-sm">${p.score} Points</div>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <button onclick="viewUserPicks('${p.name}')" class="text-xs bg-blue-100 text-blue-700 font-black px-4 py-2 rounded uppercase hover:bg-blue-700 hover:text-white transition-all">
+                            View Bracket
+                        </button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        window.viewUserPicks = async (userName) => {
+            const entriesRef = collection(db, "tournaments", appConfig.TOURNAMENT_ID, "entries");
+            const q = query(entriesRef, where("name", "==", userName));
+            const querySnap = await getDocs(q);
+
+            if (!querySnap.empty) {
+                const data = querySnap.docs[0].data();
+                document.getElementById('leaderboard-view').classList.add('hidden');
+                document.getElementById('summary-view').classList.remove('hidden');
+                document.getElementById('summary-title').textContent = userName;
+                
+                // Group picks by round ID for organized display
+                const roundGroups = {
+                    "Wild Card": [],
+                    "Divisional": [],
+                    "Championship": [],
+                    "Super Bowl": []
+                };
+
+                Object.entries(data.picks).forEach(([gameId, team]) => {
+                    if (gameId.includes('wc')) roundGroups["Wild Card"].push({ id: gameId, team });
+                    else if (gameId.includes('div')) roundGroups["Divisional"].push({ id: gameId, team });
+                    else if (gameId.includes('champ')) roundGroups["Championship"].push({ id: gameId, team });
+                    else if (gameId.includes('super')) roundGroups["Super Bowl"].push({ id: gameId, team });
+                });
+
+                const container = document.getElementById('summary-content');
+                container.innerHTML = Object.entries(roundGroups).map(([name, groupPicks]) => `
+                    <div>
+                        <h3 class="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 border-b border-blue-100 pb-2">${name}</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            ${groupPicks.map(p => `
+                                <div class="summary-card">
+                                    <p class="text-[10px] uppercase font-bold text-slate-400 mb-1">${p.id.replace(/_/g, ' ')}</p>
+                                    <p class="font-black text-slate-800">${p.team}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        };
+
+        window.closeSummary = () => {
+            document.getElementById('summary-view').classList.add('hidden');
+            document.getElementById('leaderboard-view').classList.remove('hidden');
+        };
+
+        // --- PICKER MODE (The logic you love) ---
+        function showPickerMode() {
+            document.getElementById('picker-view').classList.remove('hidden');
+            tournamentData.rounds[0].games.forEach(g => {
+                teamSeeds[g.awayTeam] = g.awaySeed; teamSeeds[g.homeTeam] = g.homeSeed;
+            });
+            teamSeeds[tournamentData.byes.afc.team] = tournamentData.byes.afc.seed;
+            teamSeeds[tournamentData.byes.nfc.team] = tournamentData.byes.nfc.seed;
+
+            renderWildCard();
+            renderPlaceholders();
+        }
+
+        function renderWildCard() {
+            const container = document.getElementById('wildcard-games');
+            container.innerHTML = tournamentData.rounds[0].games.map(game => `
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <button onclick="makePick('${game.id}', '${game.awayTeam}')" id="${game.id}-${game.awayTeam}" class="w-full text-left p-2 rounded border mb-2 hover:bg-slate-50">
+                        <span class="text-xs text-slate-400 mr-2">#${game.awaySeed}</span> ${game.awayTeam}
+                    </button>
+                    <button onclick="makePick('${game.id}', '${game.homeTeam}')" id="${game.id}-${game.homeTeam}" class="w-full text-left p-2 rounded border hover:bg-slate-50">
+                        <span class="text-xs text-slate-400 mr-2">#${game.homeSeed}</span> ${game.homeTeam}
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        window.makePick = (gameId, teamName) => {
+            document.querySelectorAll(`[id^="${gameId}-"]`).forEach(btn => btn.classList.remove('winner-selected'));
+            document.getElementById(`${gameId}-${teamName}`).classList.add('winner-selected');
+            picks[gameId] = teamName;
+            updateProgression();
+        };
+
+        function updateProgression() {
+            ['afc', 'nfc'].forEach(conf => {
+                const winners = tournamentData.rounds[0].games
+                    .filter(g => g.id.includes(conf) && picks[g.id])
+                    .map(g => ({ name: picks[g.id], seed: teamSeeds[picks[g.id]] }));
+
+                if (winners.length === 3) {
+                    winners.sort((a, b) => b.seed - a.seed); 
+                    const byeTeam = tournamentData.byes[conf];
+                    renderGameSlot(`${conf}_div_1`, 'divisional-games', byeTeam.team, byeTeam.seed, winners[0].name, winners[0].seed);
+                    renderGameSlot(`${conf}_div_2`, 'divisional-games', winners[2].name, winners[2].seed, winners[1].name, winners[1].seed);
+                }
+                if (picks[`${conf}_div_1`] && picks[`${conf}_div_2`]) {
+                    const t1 = picks[`${conf}_div_1`], t2 = picks[`${conf}_div_2`];
+                    renderGameSlot(`${conf}_champ`, 'conference-games', t1, teamSeeds[t1], t2, teamSeeds[t2]);
+                }
+                if (picks['afc_champ'] && picks['nfc_champ']) {
+                    const afc = picks['afc_champ'], nfc = picks['nfc_champ'];
+                    renderGameSlot('super_bowl', 'superbowl-game', afc, teamSeeds[afc], nfc, teamSeeds[nfc]);
+                }
+            });
+        }
+
+        function renderGameSlot(gameId, columnId, tA, sA, tB, sB) {
+            const container = document.getElementById(gameId);
+            const savedWinner = picks[gameId] || "";
+            container.innerHTML = `
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 w-full">
+                    <button onclick="makePick('${gameId}', '${tA}')" id="${gameId}-${tA}" class="w-full text-left p-2 rounded border mb-2 ${savedWinner === tA ? 'winner-selected' : ''}">
+                        <span class="text-xs text-slate-400">#${sA}</span> ${tA}
+                    </button>
+                    <button onclick="makePick('${gameId}', '${tB}')" id="${gameId}-${tB}" class="w-full text-left p-2 rounded border ${savedWinner === tB ? 'winner-selected' : ''}">
+                        <span class="text-xs text-slate-400">#${sB}</span> ${tB}
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderPlaceholders() {
+            const divs = ['afc_div_1', 'afc_div_2', 'nfc_div_1', 'nfc_div_2'];
+            const champs = ['afc_champ', 'nfc_champ'];
+            divs.forEach(id => document.getElementById('divisional-games').innerHTML += `<div id="${id}" class="bracket-slot">Waiting...</div>`);
+            champs.forEach(id => document.getElementById('conference-games').innerHTML += `<div id="${id}" class="bracket-slot">Waiting...</div>`);
+            document.getElementById('superbowl-game').innerHTML = `<div id="super_bowl" class="bracket-slot">Waiting...</div>`;
+        }
+
+        document.getElementById('submit-picks').addEventListener('click', async () => {
+            const required = ['afc_wc_1','afc_wc_2','afc_wc_3','nfc_wc_1','nfc_wc_2','nfc_wc_3','afc_div_1','afc_div_2','nfc_div_1','nfc_div_2','afc_champ','nfc_champ','super_bowl'];
+            if (!required.every(id => picks[id])) return alert("Finish your bracket first!");
+            const name = prompt("Enter your name:");
+            if (!name) return;
+            try {
+                await addDoc(collection(db, "tournaments", appConfig.TOURNAMENT_ID, "entries"), { 
+                    name, picks, timestamp: new Date().toISOString() 
+                });
+                alert("Touchdown! Bracket Submitted.");
+                window.location.reload();
+            } catch (e) { alert("Error: " + e.message); }
+        });
+
+        initApp();
+    </script>
+</body>
+</html>

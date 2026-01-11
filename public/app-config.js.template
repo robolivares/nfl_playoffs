@@ -1,0 +1,12 @@
+export const appConfig = {
+    TOURNAMENT_ID: "nfl_playoffs_2026",
+    TOURNAMENT_NAME: "NFL Playoff Sweepstakes",
+    VIEWER_MODE_ENABLED: false // Set to true once games start
+};
+
+export const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    // ... rest of your config
+};
