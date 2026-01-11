@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# nfl_playoffs
-NFL Playoffs Bracket web app
-=======
 # 🏈 NFL Playoff Challenge 2026
 
 A dynamic, real-time playoff bracket and sweepstakes application built with Firebase. This pool features automated reseeding logic and a Fibonacci-based scoring system.
@@ -80,4 +76,3 @@ firebase deploy --only hosting
 firebase deploy
 ```
 
->>>>>>> 889cd3f (README changes)
